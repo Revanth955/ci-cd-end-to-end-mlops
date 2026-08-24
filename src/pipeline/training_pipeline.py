@@ -1,11 +1,13 @@
 from pyspark.sql import SparkSession
-
 from src.config.configuration import (
     GOLD_DATA_PATH,
+    MODEL_DIR,
+    MODEL_PATH,
     TRAINING_SAMPLE_FRACTION,
     TRAINING_SAMPLE_SEED,
     CLASSIFICATION_THRESHOLD,
 )
+
 from src.pipeline.silver_pipeline import run_silver_pipeline
 from src.pipeline.gold_pipeline import run_gold_pipeline
 from src.ingestion.bronze_ingestion import ingest_to_bronze
@@ -103,6 +105,19 @@ def run_pipeline() -> None:
 
         pipeline = build_logistic_regression_pipeline(train_df)
         model = pipeline.fit(train_df)
+
+                # Persist the fitted model for later inference.
+        MODEL_DIR.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        model.write.overwrite().save(str(MODEL_PATH))
+
+        logger.info(
+            "Model artifact saved successfully: %s",
+            MODEL_PATH,
+        )
 
         logger.info("Logistic Regression training completed")
 
