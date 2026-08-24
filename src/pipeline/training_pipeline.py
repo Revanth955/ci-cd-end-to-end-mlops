@@ -1,4 +1,8 @@
 from pyspark.sql import SparkSession
+
+import mlflow
+import mlflow.spark
+
 from src.config.configuration import (
     GOLD_DATA_PATH,
     MODEL_DIR,
@@ -7,7 +11,6 @@ from src.config.configuration import (
     TRAINING_SAMPLE_SEED,
     CLASSIFICATION_THRESHOLD,
 )
-
 from src.pipeline.silver_pipeline import run_silver_pipeline
 from src.pipeline.gold_pipeline import run_gold_pipeline
 from src.ingestion.bronze_ingestion import ingest_to_bronze
@@ -47,6 +50,9 @@ def run_pipeline() -> None:
     """
     Execute the end-to-end data and ML pipeline.
     """
+
+    # Configure the MLflow experiment used to track model training.
+    mlflow.set_experiment("End-to-End Loan Default")
 
     spark = create_spark_session()
 
@@ -100,49 +106,70 @@ def run_pipeline() -> None:
         train_df = create_date_features(train_df)
         test_df = create_date_features(test_df)
 
-        # Build and train the Logistic Regression pipeline.
-        logger.info("Starting Logistic Regression training")
+        # Start an MLflow run for the model training experiment.
+        with mlflow.start_run():
 
-        pipeline = build_logistic_regression_pipeline(train_df)
-        model = pipeline.fit(train_df)
+            # Record the training configuration.
+            mlflow.log_params(
+                {
+                    "training_sample_fraction": TRAINING_SAMPLE_FRACTION,
+                    "training_sample_seed": TRAINING_SAMPLE_SEED,
+                    "classification_threshold": CLASSIFICATION_THRESHOLD,
+                }
+            )
 
-                # Persist the fitted model for later inference.
-        MODEL_DIR.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
+            # Build and train the Logistic Regression pipeline.
+            logger.info("Starting Logistic Regression training")
 
-        model.write().overwrite().save(str(MODEL_PATH))
+            pipeline = build_logistic_regression_pipeline(train_df)
+            model = pipeline.fit(train_df)
 
-        logger.info(
-            "Model artifact saved successfully: %s",
-            MODEL_PATH,
-        )
+            logger.info("Logistic Regression training completed")
 
-        logger.info("Logistic Regression training completed")
+            # Persist the fitted model for local inference.
+            MODEL_DIR.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
 
-        # Generate predictions on the future test period.
-        predictions = model.transform(test_df)
+            model.write().overwrite().save(str(MODEL_PATH))
 
-        logger.info(
-            "Generated predictions for %d test rows",
-            predictions.count(),
-        )
+            logger.info(
+                "Model artifact saved successfully: %s",
+                MODEL_PATH,
+            )
 
-        # Evaluate the model using the configured classification threshold.
-        metrics = calculate_binary_metrics(
-            predictions,
-            threshold=CLASSIFICATION_THRESHOLD,
-        )
+            # Generate predictions on the future test period.
+            predictions = model.transform(test_df)
 
-        logger.info(
-            "Evaluation results at threshold %.2f: "
-            "precision=%.4f, recall=%.4f, f1=%.4f",
-            CLASSIFICATION_THRESHOLD,
-            metrics["precision"],
-            metrics["recall"],
-            metrics["f1"],
-        )
+            logger.info(
+                "Generated predictions for %d test rows",
+                predictions.count(),
+            )
+
+            # Evaluate the model using the configured classification threshold.
+            metrics = calculate_binary_metrics(
+                predictions,
+                threshold=CLASSIFICATION_THRESHOLD,
+            )
+
+            # Record evaluation metrics in MLflow.
+            mlflow.log_metrics(metrics)
+
+            logger.info(
+                "Evaluation results at threshold %.2f: "
+                "precision=%.4f, recall=%.4f, f1=%.4f",
+                CLASSIFICATION_THRESHOLD,
+                metrics["precision"],
+                metrics["recall"],
+                metrics["f1"],
+            )
+
+            # Log the fitted Spark PipelineModel to MLflow.
+            mlflow.spark.log_model(
+                model,
+                "model",
+            )
 
         logger.info("Pipeline execution completed successfully")
 
