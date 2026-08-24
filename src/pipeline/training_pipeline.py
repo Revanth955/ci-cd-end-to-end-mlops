@@ -112,7 +112,7 @@ def run_pipeline() -> None:
             exist_ok=True,
         )
 
-        model.write.overwrite().save(str(MODEL_PATH))
+        model.write().overwrite().save(str(MODEL_PATH))
 
         logger.info(
             "Model artifact saved successfully: %s",
