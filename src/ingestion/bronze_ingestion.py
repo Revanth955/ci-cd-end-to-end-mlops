@@ -1,24 +1,53 @@
-import pandas as pd
-from pathlib import Path
+from pyspark.sql import SparkSession
+
+from src.config.configuration import RAW_DATA_FILE, BRONZE_DATA_PATH
+from src.utils.logger import logger
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-RAW_DATA_PATH = (
-    PROJECT_ROOT
-    / "data"
-    / "raw"
-    / "accepted_2007_to_2018Q4.csv"
-)
+def ingest_to_bronze(spark: SparkSession) -> None:
+    """
+    Read the raw CSV dataset and write it to the Bronze layer.
 
-BRONZE_PATH = PROJECT_ROOT / "data" / "bronze" / "bronze_data.csv"
+    Parameters
+    ----------
+    spark : SparkSession
+        Active Spark session used for reading and writing the dataset.
 
-if not RAW_DATA_PATH.exists():
-    raise FileNotFoundError(f"Dataset not found: {RAW_DATA_PATH}")
+    Raises
+    ------
+    FileNotFoundError
+        If the configured raw dataset does not exist.
+    """
 
-print("✅ Dataset found!")
+    # Validate that the configured raw dataset exists before starting ingestion.
+    if not RAW_DATA_FILE.exists():
+        raise FileNotFoundError(f"Dataset not found: {RAW_DATA_FILE}")
 
-df = pd.read_csv(RAW_DATA_PATH,nrows=5)
+    logger.info("Raw dataset found: %s", RAW_DATA_FILE)
+    logger.info("Starting Bronze ingestion")
 
-print(df.head())
-print(df.shape)
-print(df.info())
+    # Read the raw CSV without inferring data types.
+    df = (
+        spark.read
+        .option("header", True)
+        .option("inferSchema", False)
+        .option("quote", '"')
+        .option("escape", '"')
+        .csv(str(RAW_DATA_FILE))
+    )
+
+    logger.info("Raw dataset loaded successfully with Spark")
+    logger.info("Bronze dataset contains %d columns", len(df.columns))
+
+    # Write the raw data to the Bronze layer without changing its structure.
+    (
+        df.write
+        .mode("overwrite")
+        .option("header", True)
+        .csv(str(BRONZE_DATA_PATH))
+    )
+
+    logger.info(
+        "Bronze ingestion completed successfully: %s",
+        BRONZE_DATA_PATH,
+    )
