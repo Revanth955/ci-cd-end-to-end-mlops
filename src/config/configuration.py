@@ -30,3 +30,11 @@ CLASSIFICATION_THRESHOLD = 0.20
 # Model artifacts.
 MODEL_DIR = PROJECT_ROOT / "models"
 MODEL_PATH = MODEL_DIR / "logistic_regression"
+
+# Model promotion acceptance criteria.
+#
+# These values are project-level assumptions for this educational
+# MLOps pipeline and are not production banking requirements.
+MIN_RECALL = 0.70
+MIN_PRECISION = 0.20
+MIN_F1_SCORE = 0.30
