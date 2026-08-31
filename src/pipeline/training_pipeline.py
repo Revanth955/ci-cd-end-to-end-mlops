@@ -20,7 +20,7 @@ from src.transformation.feature_engineering import create_date_features
 from src.ml.evaluation import calculate_binary_metrics
 from src.ml.model_training import build_logistic_regression_pipeline
 from src.utils.logger import logger
-
+from src.ml.model_promotion import promote_model
 
 def create_spark_session() -> SparkSession:
     """
@@ -109,6 +109,12 @@ def run_pipeline() -> None:
         # Start an MLflow run for the model training experiment.
         with mlflow.start_run():
 
+            # Record the model algorithm used for this training run.
+            mlflow.set_tag(
+                "algorithm",
+                "logistic_regression",
+            )
+
             # Record the training configuration.
             mlflow.log_params(
                 {
@@ -169,6 +175,12 @@ def run_pipeline() -> None:
             mlflow.spark.log_model(
                 model,
                 "model",
+            )
+
+            # Run model validation, registration, and promotion.
+            promote_model(
+                run_id=mlflow.active_run().info.run_id,
+                model_name="LoanDefaultModel",
             )
 
         logger.info("Pipeline execution completed successfully")

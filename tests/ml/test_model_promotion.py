@@ -12,18 +12,26 @@ RUN_ID = "test-run-id"
 MODEL_NAME = "LoanDefaultModel"
 
 
+@patch("src.ml.model_promotion.get_champion_version")
 @patch("src.ml.model_promotion.register_model")
 @patch("src.ml.model_promotion.validate_model")
 def test_promote_model_registers_when_validation_passes(
     mock_validate_model,
     mock_register_model,
+    mock_get_champion_version,
 ):
     """A validated model should proceed to registration."""
 
     # Simulate a successful validation result.
     mock_validate_model.return_value = {
-        "passed": True,
-    }
+    "passed": True,
+    "metrics": {
+        "recall": 0.80,
+        "precision": 0.25,
+        "f1": 0.40,
+    },
+}
+    mock_get_champion_version.return_value = None
 
     # Simulate the object returned by MLflow registration.
     mock_register_model.return_value = SimpleNamespace(
