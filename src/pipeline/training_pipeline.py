@@ -51,8 +51,11 @@ def run_pipeline() -> None:
     Execute the end-to-end data and ML pipeline.
     """
 
+    # Configure MLflow to use the running tracking server.
+    mlflow.set_tracking_uri("http://localhost:5000")
+
     # Configure the MLflow experiment used to track model training.
-    mlflow.set_experiment("End-to-End Loan Default")
+    mlflow.set_experiment("End-to-End Loan Default Docker")
 
     spark = create_spark_session()
 
@@ -178,7 +181,7 @@ def run_pipeline() -> None:
             )
 
             # Run model validation, registration, and promotion.
-            promote_model(
+            promote_model(S
                 run_id=mlflow.active_run().info.run_id,
                 model_name="LoanDefaultModel",
             )
